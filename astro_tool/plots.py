@@ -390,6 +390,28 @@ def parameter_distribution_plot(parameter = None, bins=80):
     df = pd.DataFrame(parameter_list, index=curve_names)
     df.to_csv(config.STATISTICS_DIR / "parameter_distribution.csv")
     print(df)
+    
+def sorted_parameters(data = None, parameters_df = None): # aufrufen um lichtkurven nach parameter sortiert absteigend zu plotten
+    if data == None:
+        data = base.load_processed_data(None, False)
+    if parameters_df == None:
+        parameters_df = pd.read_csv(config.STATISTICS_DIR / "parameter_distribution.csv", index_col=0)
+    param_columns = parameters_df.columns.values
+    print_string = "Press: "
+    for idx, val in enumerate(param_columns):
+        print_string += f"{idx}: {val} | "
+    print_string + "Input: "    
+    user_input = int(input(print_string))
+    
+    parameters_df.sort_values(by=param_columns[user_input], ascending=False, inplace=True)
+    
+    for name in parameters_df.index:
+        for obj in data:
+            if obj.original_name == name:
+                compare_before_after_preprocessing(obj,f"Name: {obj.get_name()} \n{param_columns[user_input]}: {round(getattr(obj.parameters, param_columns[user_input]),3)}")
+                break
+    
+    
 if __name__ == "__main__":
     
     
@@ -410,12 +432,15 @@ if __name__ == "__main__":
             data = base.LightCurve.load(val)
             compare_before_after_preprocessing(data)
     
-    if True: # load single
+    if False: # load single
         data = LightCurve.load("549756880980") 
         
         print(f"Data: \n{data.data}")
         
         compare_before_after_preprocessing(data)
+    if True:
+        sorted_parameters()
+        
 """
 - Fvar kann negativ -> nicht berechnebar sein
 - frequenz top 1 oder top 3 frequenzen
