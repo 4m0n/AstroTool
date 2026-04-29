@@ -12,7 +12,7 @@ import astropy.units as u
 
 
 # sollte als generator geschrieben werden i guess
-def load_processed_data(amount = None, random = True):
+def load_processed_data_list(amount = None, random = True):
     save_class_path = config.INTERIM_DATA_DIR
     directories = [val for val in save_class_path.iterdir()]
     if random:
@@ -60,7 +60,7 @@ class Parameters:
             print(data)
             return data
         else: 
-            collection = load_processed_data(None, False)
+            collection = load_processed_data_list(None, False)
             df = pd.DataFrame()
             for val in collection: 
                 params = val.parameters
@@ -220,6 +220,7 @@ class LightCurve:
         save_class_path = config.INTERIM_DATA_DIR
         name = self.get_name()
         path = save_class_path / f"{name}.pickle"
+        self.new_path = str(path)
         self.class_path = str(path)
         with open(path, "wb") as file:
             pickle.dump(self, file)   
@@ -227,7 +228,7 @@ class LightCurve:
             
     
     @staticmethod
-    def read_data_from_thesis(filepath):
+    def read_raw_data(filepath):
         with open(filepath, 'r') as file:
             for i, line in enumerate(file):
                 if line.startswith("JD"):
@@ -236,30 +237,29 @@ class LightCurve:
             else:
                 return None
         return pd.read_csv(filepath, skiprows=start_line)
-    
-    def load_orignal_thesis_data(self, keep = False):
-        self.currently_loaded = "orignal"  
+    def load_original_data(self, keep = False):
         path = self.original_path 
         #path = config.RAW_DATA_DIR / "light_curves" /(self.get_name() + ".csv")     
            
-        data = self.read_data_from_thesis(path)  
+        data = self.read_raw_data(path)  
         if "JD"  in data.columns and "Date" not in data.columns:
             data["Date"] = pd.to_datetime(data['JD'], origin='julian', unit='D')
         if keep:   
             self.data = data
+            self.currently_loaded = "orignal"  
         else:
             return data
         
     def load_processed_data(self):
         if ".pickle" in str(self.new_path):
             self.data = LightCurve.load(self.get_name()).data
-            self.currently_loaded = "processed"
+            #self.currently_loaded = "processed"
         elif self.new_path and Path(self.new_path).exists():
             self.data = pd.read_csv(self.new_path)
-            self.currently_loaded = "processed"
+            #self.currently_loaded = "processed"
         else:
             self.preprocess()
-            self.currently_loaded = "processed"
+            #self.currently_loaded = "processed"
         return self.data
     
     def save_csv(self):

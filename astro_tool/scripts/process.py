@@ -165,7 +165,6 @@ def remove_outliers_mad(data, threshold=3):
                 mean_mean = mean.mean()
                 std = df[value].rolling(window=mid, center=True).std()
                 std_mean = std.mean()
-                full_std = df[value].std()
                 mean = np.where(np.isnan(mean), mean_mean, mean)
                 std = np.where(np.isnan(std), std_mean, std)
 
@@ -360,29 +359,16 @@ def shift_cam_and_filters(data,analyse = False,cuts = True):
 
 
 def start(data, analyse = False):
-    start_time = time.time()
     data.data = pre_cleaning(data.data) # erstellt datum und JD, index separate 
-    after_precleaning_time = time.time()
     data.normalize(normalize = True) # normalize
-    after_normalize_time = time.time()
     ### ========== PREPROCESSING ALGORITHMS ========== ###
     data = remove_outliers_mad(data) # removes points around each camera
-    after_remove_outliers_time = time.time()
+    data.normalize(normalize = False)
+    data.normalize(normalize = True)
     data.data = shift_cam_and_filters(data,analyse) #braucht am längsten
-    after_shift_cam_time = time.time()
-    #print(f"Cuts:\n{data.cuts.cuts}\noutliers:{data.cuts.outliers}\ncases:{data.cuts.cases}")
     if analyse:
         return data.data
     ### ================================ ###
-        
     data.normalize(normalize = False) # back to orignal scale
-    after_end_time = time.time()
-    print(f"\nTime Overview:"
-        f"\nPrecleaning: {after_precleaning_time - start_time:.3f}s"
-        f"\nNormalize: {after_normalize_time - after_precleaning_time:.3f}s"
-        f"\nRemove Outliers: {after_remove_outliers_time - after_normalize_time:.3f}s"
-        f"\nShift Cam/Filters: {after_shift_cam_time - after_remove_outliers_time:.3f}s"
-        f"\nBack to Original Scale: {after_end_time - after_shift_cam_time:.3f}s"
-        f"\nTotal: {after_end_time - start_time:.3f}s"
-    )    
+
     return data.data

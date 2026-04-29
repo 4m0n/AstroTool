@@ -174,15 +174,15 @@ def get_param_list(param = None, threshold=0.5):
     return df
     
 def create_parameter_list():
-    data = base.load_processed_data(None, False)
+    data = base.load_processed_data_list(None, False)
     df = pd.DataFrame()
     for val in data:
         params = val.parameters
         entry = {}
         for name, value in params.__dict__.items():
             if name == "frequency":
-                entry[name] = value["frequency"].values[0] if value["frequency"].values.size > 0 else None
-                entry["frequency_strength"] = value["properties"].values[0] if value["properties"].values.size > 0 else None
+                entry[name] = value["frequency"].values[0] if "frequency" in value and value["frequency"].values.size > 0 else None
+                entry["frequency_strength"] = value["properties"].values[0] if "properties" in value and value["properties"].values.size > 0 else None
             else:
                 entry[name] = value
         entry["name"] = val.get_name()
@@ -193,7 +193,7 @@ def create_parameter_list():
 
 def compare_before_after_preprocessing(data,title = None):
     #before, after = data.load_orignal_thesis_data(keep = False), data.load_processed_data()
-    before, after = data.data, data.load_processed_data()
+    before, after = data.load_original_data(), data.load_processed_data()
 
     fig, axs = plt.subplots(2, 1, figsize=(12, 8), constrained_layout=True)
     
@@ -312,9 +312,11 @@ def threshold_plot(lower = None, upper = None, parameter = None):
                 compare_before_after_preprocessing(data,f"Name: {data.get_name()} \n{parameter}: {round(compare_value,3)}")
         
     
-def parameter_distribution_plot(parameter = None, bins=80):
+def parameter_distribution(parameter = None, bins=80, plot = False):
     
-    def hist_plot(values, param_name, bins):
+    def hist_plot(values, param_name, bins, plot):
+        if not plot:
+            return
         values = np.array(values)
         mean = np.mean(values)
         median = np.median(values)
@@ -341,11 +343,10 @@ def parameter_distribution_plot(parameter = None, bins=80):
         plt.tight_layout()
         plt.show()
     
-    data = base.load_processed_data(None, False)
+    data = base.load_processed_data_list(None, False)
     
     parameters_class = Parameters()
     variablen_namen = list(parameters_class.__dict__.keys())
-    print(f"variablen_namen: {variablen_namen}")
 
     parameter_list = {}
 
@@ -357,50 +358,55 @@ def parameter_distribution_plot(parameter = None, bins=80):
             continue
 
         values = []
-
+        values_freq_prop = []
         if param_name == "Fvar":
             for obj in data:
                 param = getattr(obj.parameters, param_name, None)
                 values.append(param if param is not None else np.nan)
-
-            hist_plot(values, param_name, bins)
+            hist_plot(values, param_name, bins,plot)
 
         elif param_name == "frequency":
             for obj in data:
                 param = getattr(obj.parameters, param_name, None)
 
                 if param is not None and len(param) > 0:
+                    print(param["frequency"])
                     val = param["frequency"].iloc[0]
                     values.append(1 / val if val is not None else np.nan)
+                    prop_val = param["properties"].iloc[0]
+                    values_freq_prop.append(prop_val if prop_val is not None else np.nan)
                 else:
                     values.append(np.nan)
+                    values_freq_prop.append(np.nan)
+            parameter_list[f"{param_name}_properties"] = values_freq_prop
 
-            hist_plot(values, param_name, bins)
+            hist_plot(values, param_name, bins,plot)
+            hist_plot(values_freq_prop, f"{param_name}_properties", bins,plot)
 
         else:
             for obj in data:
                 param = getattr(obj.parameters, param_name, None)
                 values.append(param if param is not None else np.nan)
 
-            hist_plot(values, param_name, bins)
+            hist_plot(values, param_name, bins,plot)
 
         parameter_list[param_name] = values
 
     # DataFrame korrekt erstellen
     df = pd.DataFrame(parameter_list, index=curve_names)
     df.to_csv(config.STATISTICS_DIR / "parameter_distribution.csv")
-    print(df)
+
     
 def sorted_parameters(data = None, parameters_df = None): # aufrufen um lichtkurven nach parameter sortiert absteigend zu plotten
     if data == None:
-        data = base.load_processed_data(None, False)
+        data = base.load_processed_data_list(None, False)
     if parameters_df == None:
         parameters_df = pd.read_csv(config.STATISTICS_DIR / "parameter_distribution.csv", index_col=0)
     param_columns = parameters_df.columns.values
     print_string = "Press: "
     for idx, val in enumerate(param_columns):
         print_string += f"{idx}: {val} | "
-    print_string + "Input: "    
+    print_string += "Input: "    
     user_input = int(input(print_string))
     
     parameters_df.sort_values(by=param_columns[user_input], ascending=False, inplace=True)
@@ -408,9 +414,29 @@ def sorted_parameters(data = None, parameters_df = None): # aufrufen um lichtkur
     for name in parameters_df.index:
         for obj in data:
             if obj.original_name == name:
-                compare_before_after_preprocessing(obj,f"Name: {obj.get_name()} \n{param_columns[user_input]}: {round(getattr(obj.parameters, param_columns[user_input]),3)}")
+                if "frequency" in param_columns[user_input]:
+                    if "properties" in param_columns[user_input]:
+                        parameter_value = round(getattr(obj.parameters, param_columns[user_input].replace("_properties",""))["properties"].iloc[0],3)
+                    else:
+                        parameter_value = round(getattr(obj.parameters, param_columns[user_input])["frequency"].iloc[0],3)
+                else:
+                    parameter_value = round(getattr(obj.parameters, param_columns[user_input]),3)
+                compare_before_after_preprocessing(obj,f"Name: {obj.get_name()} \n{param_columns[user_input]}: {parameter_value}")
                 break
     
+def map_plot(data):
+    for obj in data:
+        if obj.coordinates is not None:
+            
+
+    plt.figure(figsize=(8, 6))
+    plt.scatter(ra, dec, s=10, c='blue')
+    plt.xlabel('Rektaszension (RA)')
+    plt.ylabel('Deklination (DEC)')
+    plt.title('Himmelskarte')
+    plt.gca().invert_xaxis()  # Optional: RA-Achse invertieren wie üblich in Astronomie
+    plt.grid(True)
+    plt.show()
     
 if __name__ == "__main__":
     
@@ -418,7 +444,7 @@ if __name__ == "__main__":
     
     if False:
         #create_parameter_list()
-        parameter_distribution_plot()
+        parameter_distribution(plot=True)
     
     if False: # asas_sn test
         objs = base.LightCurve.load_asas_sn()
@@ -433,14 +459,16 @@ if __name__ == "__main__":
             compare_before_after_preprocessing(data)
     
     if False: # load single
-        data = LightCurve.load("549756880980") 
-        
-        print(f"Data: \n{data.data}")
-        
+        data = LightCurve.load("515396305126-light-curves") 
+        parameter_distribution()
         compare_before_after_preprocessing(data)
-    if True:
+    if False:
+        parameter_distribution(plot=True)
         sorted_parameters()
-        
+    if True:
+        data = base.load_processed_data_list(None, False)
+        map_plot(data)
+    
 """
 - Fvar kann negativ -> nicht berechnebar sein
 - frequenz top 1 oder top 3 frequenzen

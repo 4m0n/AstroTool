@@ -57,7 +57,6 @@ class parameter_calculations:
             # === Call all functions on the data===
             for param in funcs:
                 data = param(data = data, only_new = False)
-                print(f"after {param}: {data.data['Flux'].min()} max: {data.data['Flux'].max()}")
             data.save()  
         
         
@@ -110,7 +109,6 @@ class parameter_calculations:
             ax_w.grid(True, which="both", linestyle="--", linewidth=0.5)
             plt.get_current_fig_manager().full_screen_toggle()
             plt.show()
-            
         data.parameters.frequency = peaks.iloc[0:3]
         return data
     @staticmethod
@@ -160,6 +158,8 @@ class parameter_calculations:
         if only_new == True:
             if data.frequency.mean != None:
                 return data
+        if data.currently_loaded != "processed":
+            print(f"Warning: standard_values should be calculated on processed data, but currently_loaded is {data.currently_loaded}")
         data.normalize(normalize=True) 
         curve = data.data
         data.parameters.std = curve[value].std()
@@ -184,7 +184,7 @@ def evaluate_specific():
 
 def evaluate_all_preprocessed():
     EVAL = parameter_calculations()
-    data = base.load_processed_data()    
+    data = base.load_processed_data_list()    
     for i in tqdm(range(len(data))):
         if len(data[i].data) < 10:
             print(f"Trash: {data[i].get_name()}")

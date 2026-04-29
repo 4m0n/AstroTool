@@ -11,7 +11,7 @@ import traceback
 if __name__ == "__main__":
     
     #evaluate.parameter_calculations.calculate_parameters(only_new = False)
-    if True:
+    if False:
         data = run()
         for val in tqdm(data, "preprocessing"):
             try:
@@ -25,7 +25,7 @@ if __name__ == "__main__":
                 pass
 
     if False:  # load_single
-        name = "661427502554-light-curves"
+        name = "266288698682-light-curves"
         #name = "NGC 4593"
         #name = "IC 4329A"
         #name = "NGC 3783"
@@ -35,12 +35,12 @@ if __name__ == "__main__":
         #data = start(name,new_name = "NGC 4151")
         data = load_orignal_data(name)
         data.preprocess()
+        data.evalute()
         data.plot_before_after()
         data.save()
 
     
     if True: # evaluate all
-        data = base.load_processed_data()
         evaluate.evaluate_all_preprocessed()
         #evaluate.parameter_calculations.calculate_parameters()
         
