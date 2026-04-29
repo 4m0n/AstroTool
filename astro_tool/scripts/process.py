@@ -196,167 +196,148 @@ def remove_outliers_mad(data, threshold=3):
     return data
 
 
-def shift_cam_and_filters(data,analyse = False,cuts = True):
+
+
+def shift_cam_and_filters(data, analyse=False, cuts=True):
     file = data.data
-    cameras = file["Filter_Camera"].unique() 
-    if len(cameras) <= 1: #! eine kurve reicht eigentlich auch schon
+
+    # === Kameras sortieren ===
+    cam_min_dates = file.groupby("Filter_Camera")["Date"].min()
+    cameras = cam_min_dates.sort_values().index.tolist()
+
+    if len(cameras) <= 1:
         return file
-    min = []
-    for c in cameras:
-        min.append(file.loc[file["Filter_Camera"] == c, "Date"].min())
 
-    #Kameras sortieren
-    for i in range(len(min)):   
-        for j in range(len(min)-i-1):
-            if min[j] > min[j+1]:
-                min[j], min[j+1] = min[j+1], min[j]
-                cameras[j], cameras[j+1] = cameras[j+1], cameras[j]
-    
     main_curve = file[file["Filter_Camera"] == cameras[0]].copy()
-    analyse_cuts = pd.DataFrame()
-    analyse_cuts_conditions = pd.DataFrame()
-    for i in range(1,len(cameras)):
-        #print(f"cam: {cameras[i]} nr: {i}")
-        fit_curve = file[file["Filter_Camera"] == cameras[i]].copy()
-        # Check ob es größere Lücken oder Sprünge gibt -> Dann Lichtkurve weiter unterteilen # ! Wenn ein Cluster stark verschoben ist -> wird als seperate Kurve behandelt
-        if cuts:
-            fit_curve.sort_values(by='Date', inplace=True)
-            fit_curve.reset_index(drop=True, inplace=True)
-            #curve_splitter = pd.DataFrame(columns=["cut", "mean", "std","timediff"], dtype='float')
-            curve_splitter = pd.DataFrame({
-                "cut": pd.Series(dtype='int64'),
-                "mean": pd.Series(dtype='float'),
-                "std": pd.Series(dtype='float'),
-                "timediff": pd.Series(dtype='timedelta64[ns]')
-            })
-            curve_splitter = curve_splitter.astype({'cut': 'int64'})         
-            start = 0
-            # ==== Bedingung 1 
-            for k in range(len(fit_curve["Date"])-1):
-                if (fit_curve.iloc[k+1]["Date"] - fit_curve.iloc[k]["Date"] > pd.Timedelta(days=30)) or (abs(fit_curve.iloc[k+1][value] - fit_curve.iloc[k][value]) > fit_curve[value].std()): # Maximale Lückengröße
-                    if len(fit_curve[value][start:k]) <2: #! entfernen? (wenn in einem einzelnen Zeitraum weniger als 2 Werte vorhanden sind)
-                        start = k+1
-                        continue
-                    curve_splitter = pd.concat([curve_splitter, pd.DataFrame([{"cut":k,"mean":fit_curve[value][start:k].mean(),"std":fit_curve[value][start:k].std(),"timediff":fit_curve.iloc[k+1]["Date"] - fit_curve.iloc[k]["Date"]}])], ignore_index=True)
-                    data.cuts.cases.append(fit_curve.iloc[k]["Date"]) # start date not end date
-                    start = k+1
-            # ==== Bedingung 2
-            # avg_days = 4
-            # for i in range(avg_days,len(fit_curve["Date"])-avg_days - 1):  
-            #     mean = fit_curve[value][i-avg_days:i].mean()
-            #     if abs(mean - fit_curve[value][i+1:i+1+avg_days].mean()) > (fit_curve[value][i-avg_days:i].std() - fit_curve[value][i+1:i+1+avg_days].std()).mean():
-            #         for k in range(i,len(fit_curve["Date"])):
 
+    analyse_rows = []
+    analyse_conditions = []
 
-            # ================
-                                        
-            mean_std = curve_splitter["std"].mean()
-            new_curves = pd.DataFrame(columns = ["cut_start"])
-            
-            start_data = {"cut_start":[0,len(fit_curve[value])]}
-            new_curves = pd.DataFrame(start_data)
-            def steigung(file):
-                def linear(x,m,b):
-                    return m*x+b
-                curve = file.copy()
+    for cam in cameras[1:]:
+        fit_curve = file[file["Filter_Camera"] == cam].copy()
 
-                numeric_index = []
-                for i in curve["Date"]:
-                    numeric_index.append(i.timestamp())
-                    
-                # ===== FIT ======
-                if len(numeric_index) < 2:
-                    return 0
-                min_num = np.min(numeric_index)
-                diff = np.max(numeric_index) - min_num
-                numeric_index = numeric_index - min_num
-                numeric_index = numeric_index/diff
-                try:
-                    params, params_covariance = optimize.curve_fit(linear, numeric_index, curve[value].values, p0=[1,0.5],maxfev=100000) # m*x+b
-                    m,b  = params[0],params[1]
-                except:
-                    return 0
-                return m
-            
-            temp_df = pd.DataFrame()    
-            for k in range(1,len(curve_splitter["cut"])):
-                # ==== Bedingung 1
-                m =  abs(steigung(fit_curve.loc[curve_splitter['cut'][k-1]:curve_splitter['cut'][k]])) < 0.5
-                bedingung = (curve_splitter["std"][k-1] < mean_std*1.2) and (curve_splitter["std"][k] < mean_std*1.1) and ((curve_splitter["mean"][k] > curve_splitter["mean"][k-1]*1.05) or (curve_splitter["mean"][k] < curve_splitter["mean"][k-1]*0.95))
-
-                #bedingung 2 für große abstände + großen sprung
-                bedingung2 = (curve_splitter["timediff"][k-1] > pd.Timedelta(days=60) and (abs(curve_splitter["mean"][k] / curve_splitter["mean"][k - 1]) > 2 or abs(curve_splitter["mean"][k] / curve_splitter["mean"][k - 1]) < 0.5))
-                
-                # Versuch mit noramalisierung:
-                m =  abs(steigung(fit_curve.loc[curve_splitter['cut'][k-1]:curve_splitter['cut'][k]])) < 0.5/73.5
-                bedingung = (curve_splitter["std"][k-1] < mean_std*2) and (curve_splitter["std"][k] < mean_std*1.5) and ((curve_splitter["mean"][k] > curve_splitter["mean"][k-1]*1.1 * 1.109435) or (curve_splitter["mean"][k] < curve_splitter["mean"][k-1]*0.9 * 1.109435))
-
-                #bedingung 2 für große abstände + großen sprung
-                bedingung2 = False # (curve_splitter["timediff"][k-1] > pd.Timedelta(days=60) and (abs(curve_splitter["mean"][k] / (curve_splitter["mean"][k - 1]* 1.109435)) > 2 or abs(curve_splitter["mean"][k] / (curve_splitter["mean"][k - 1]* 1.109435) < 0.5)))
-                
-                
-                
-                # ===============================
-                #bedingung = (curve_splitter["std"][i-1] < mean_std*2) and (curve_splitter["std"][i] < mean_std*1.5) and ((curve_splitter["mean"][i] > curve_splitter["mean"][i-1]*1.1) or (curve_splitter["mean"][i] < curve_splitter["mean"][i-1]*0.9))
-                #bedingung 2 für große abstände + großen sprung
-                #bedingung2 = (curve_splitter["timediff"][i-1] > pd.Timedelta(days=60) and (abs(curve_splitter["mean"][i] / curve_splitter["mean"][i - 1]) > 2 or abs(curve_splitter["mean"][i] / curve_splitter["mean"][i - 1]) < 0.5))
-                
-                
-                
-                # print(f"EHH Bed1:\n{bedingung}\nBed2:{bedingung2}\n")
-                row = {
-                    "start_index": curve_splitter['cut'][k-1],
-                    "end_index": curve_splitter['cut'][k],
-                    "std_prev": curve_splitter["std"][k-1],
-                    "std_next": curve_splitter["std"][k],
-                    "mean_prev": curve_splitter["mean"][k-1],
-                    "mean_next": curve_splitter["mean"][k],
-                    "mean_std": mean_std,
-                    "timediff": curve_splitter["timediff"][k-1],
-                    "fit_curve_slice": steigung(fit_curve.loc[curve_splitter['cut'][k-1]:curve_splitter['cut'][k]]),
-                    "m":m,
-                    "bedingung": bedingung,
-                    "bedingung2": bedingung2,  
-                    "final": (m and bedingung) or bedingung2,
-                }
-
-                temp_df = pd.concat([temp_df, pd.DataFrame([row])], ignore_index=True)    
-                                            
-                if (m and bedingung) or bedingung2:
-                    new_curves = pd.concat([new_curves, pd.DataFrame([{"cut_start":curve_splitter["cut"][k-1]+1}])], ignore_index=True)
-                        
-            filename = "analyse_cuts_test1_no_norm.csv"
-
-            if os.path.exists(filename):
-                existing_df = pd.read_csv(filename, index_col=0)
-                result_df = pd.concat([existing_df, temp_df], ignore_index=True)
-            else:
-                result_df = temp_df
-
-            #result_df.to_csv(filename)
-                
-            new_curves.sort_values(by='cut_start', inplace=True)
-            new_curves.reset_index(drop=True, inplace=True)
-            for i in range(1,len(new_curves["cut_start"])):
-                fit_curve2,shift = neumann_cam_shift(main_curve,fit_curve.iloc[new_curves["cut_start"][i-1]:new_curves["cut_start"][i]].copy())
-                temp = {"start_date":fit_curve.iloc[new_curves["cut_start"][i-1]]["Date"],
-                        "end_date":fit_curve.iloc[new_curves["cut_start"][i]-1]["Date"],
-                        "shift":shift,
-                        }
-                data.cuts.cuts.append(temp) 
-                main_curve = pd.concat([main_curve, fit_curve2], ignore_index=True)
-                main_curve.sort_values(by='Date', inplace=True)
-            global current_cuts
-            current_cuts = len(new_curves["cut_start"]) - 2
-            
-        else:  
-            fit_curve,_ = neumann_cam_shift(main_curve,fit_curve)
+        if not cuts:
+            fit_curve, _ = neumann_cam_shift(main_curve, fit_curve)
             main_curve = pd.concat([main_curve, fit_curve], ignore_index=True)
             main_curve.sort_values(by='Date', inplace=True)
-    if analyse:
-        return analyse_cuts,analyse_cuts_conditions
-    return main_curve
+            continue
 
+        # === Vorbereitung (NumPy Arrays) ===
+        fit_curve.sort_values(by="Date", inplace=True)
+        fit_curve.reset_index(drop=True, inplace=True)
+
+        dates = fit_curve["Date"].values
+        values = fit_curve[value].values
+
+        std_all = np.std(values)
+
+        # === Step 1: Cuts finden ===
+        cuts_idx = []
+        start = 0
+
+        for k in range(len(dates) - 1):
+            time_gap = dates[k+1] - dates[k]
+            value_jump = abs(values[k+1] - values[k])
+
+            if (time_gap > np.timedelta64(30, 'D')) or (value_jump > std_all):
+                if (k - start) >= 2:
+                    cuts_idx.append((start, k))
+                start = k + 1
+
+        if (len(values) - start) >= 2:
+            cuts_idx.append((start, len(values)-1))
+
+        # === Segment Statistiken ===
+        segments = []
+        for (s, e) in cuts_idx:
+            seg_values = values[s:e+1]
+            seg_dates = dates[s:e+1]
+
+            # normierte Zeit
+            t = (seg_dates.astype('datetime64[s]').astype(float))
+            t = (t - t.min())
+            if t.max() > 0:
+                t = t / t.max()
+
+            # schnelle lineare Regression
+            if len(t) > 1:
+                m = np.polyfit(t, seg_values, 1)[0]
+            else:
+                m = 0
+
+            segments.append({
+                "start": s,
+                "end": e,
+                "mean": np.mean(seg_values),
+                "std": np.std(seg_values),
+                "slope": m,
+                "timediff": seg_dates[-1] - seg_dates[0]
+            })
+
+        if len(segments) == 0:
+            continue
+
+        mean_std = np.mean([seg["std"] for seg in segments])
+
+        # === Step 2: Segmente zusammenführen ===
+        new_starts = [segments[0]["start"]]
+
+        for i in range(1, len(segments)):
+            prev = segments[i-1]
+            curr = segments[i]
+
+            m_condition = abs(curr["slope"]) < 0.5 / 73.5
+
+            mean_condition = (
+                prev["std"] < mean_std * 2 and
+                curr["std"] < mean_std * 1.5 and
+                (
+                    curr["mean"] > prev["mean"] * 1.1 * 1.109435 or
+                    curr["mean"] < prev["mean"] * 0.9 * 1.109435
+                )
+            )
+
+            final = m_condition and mean_condition
+
+            analyse_rows.append({
+                "prev_start": prev["start"],
+                "curr_start": curr["start"],
+                "m": curr["slope"],
+                "std_prev": prev["std"],
+                "std_curr": curr["std"],
+                "mean_prev": prev["mean"],
+                "mean_curr": curr["mean"],
+                "final": final
+            })
+
+            if final:
+                new_starts.append(curr["start"])
+
+        new_starts.append(len(values))
+
+        # === Step 3: Shiften ===
+        for i in range(1, len(new_starts)):
+            s = new_starts[i-1]
+            e = new_starts[i]
+
+            segment_df = fit_curve.iloc[s:e].copy()
+
+            shifted, shift = neumann_cam_shift(main_curve, segment_df)
+
+            data.cuts.cuts.append({
+                "start_date": segment_df.iloc[0]["Date"],
+                "end_date": segment_df.iloc[-1]["Date"],
+                "shift": shift
+            })
+
+            main_curve = pd.concat([main_curve, shifted], ignore_index=True)
+
+        main_curve.sort_values(by='Date', inplace=True)
+
+    if analyse:
+        return pd.DataFrame(analyse_rows), pd.DataFrame(analyse_conditions)
+
+    return main_curve
 
 
 def start(data, analyse = False):
@@ -377,12 +358,12 @@ def start(data, analyse = False):
         
     data.normalize(normalize = False) # back to orignal scale
     after_end_time = time.time()
-    print(f"\nTime Overview:"
-        f"\nPrecleaning: {after_precleaning_time - start_time:.3f}s"
-        f"\nNormalize: {after_normalize_time - after_precleaning_time:.3f}s"
-        f"\nRemove Outliers: {after_remove_outliers_time - after_normalize_time:.3f}s"
-        f"\nShift Cam/Filters: {after_shift_cam_time - after_remove_outliers_time:.3f}s"
-        f"\nBack to Original Scale: {after_end_time - after_shift_cam_time:.3f}s"
-        f"\nTotal: {after_end_time - start_time:.3f}s"
-    )    
+    # print(f"\nTime Overview:"
+    #     f"\nPrecleaning: {after_precleaning_time - start_time:.3f}s"
+    #     f"\nNormalize: {after_normalize_time - after_precleaning_time:.3f}s"
+    #     f"\nRemove Outliers: {after_remove_outliers_time - after_normalize_time:.3f}s"
+    #     f"\nShift Cam/Filters: {after_shift_cam_time - after_remove_outliers_time:.3f}s"
+    #     f"\nBack to Original Scale: {after_end_time - after_shift_cam_time:.3f}s"
+    #     f"\nTotal: {after_end_time - start_time:.3f}s"
+    # )    
     return data.data
