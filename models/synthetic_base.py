@@ -8,12 +8,13 @@ from scipy import fft
 
 def freq_analysis():
     data = pd.DataFrame({"time":[],"difference":[],"difference":[]})
-    time_range = np.linspace(1, 10, 100) * 365 * 24 * 60 * 60
+    time_range = np.linspace(1, 10, 1000) * 365 * 24 * 60 * 60
     
     for val in time_range:
         Curve = SYNTHETIC(noise=1)
-        Curve.simple_sin(b = val)
+        Curve.simple_sin(A = 1, b = val)
         Curve.create_gabs()
+        #Curve.plot()
         ANE = ANALYSE(Curve.x, Curve.y, Curve.formula)
         ANE.FourierLombScargle()
         #Curve.plot()
@@ -150,18 +151,18 @@ class ANALYSE:
     
     
     
-#freq_analysis()    
+freq_analysis()    
     
     
     
     
+exit()    # Todo finish the rolling mean 
         
 Curve = SYNTHETIC(noise = 1)
 Curve.simple_sin()
 Curve.plot()
-Curve.rolling_mid()
-Curve.plot()
-exit()    # Todo finish the rolling mean 
+#Curve.rolling_mid()
+#Curve.plot()
 #Curve.simple_sin()
 
 Curve.normalize()
