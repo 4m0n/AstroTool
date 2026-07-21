@@ -24,8 +24,9 @@ if __name__ == "__main__":
                 traceback.print_exc()
                 pass
 
-    if False:  # load_single
-        name = "266288698682-light-curves"
+    if True:  # load_single
+        #name = "266288698682-light-curves"
+        name = "188979435390-light-curves"
         #name = "NGC 4593"
         #name = "IC 4329A"
         #name = "NGC 3783"
@@ -40,10 +41,9 @@ if __name__ == "__main__":
         data.save()
 
     
-    if True: # evaluate all
+    if False: # evaluate all
         evaluate.evaluate_all_preprocessed()
         #evaluate.parameter_calculations.calculate_parameters()
         
         
         
-#! verändert val.preprocess etwas??

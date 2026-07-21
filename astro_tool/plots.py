@@ -424,19 +424,62 @@ def sorted_parameters(data = None, parameters_df = None): # aufrufen um lichtkur
                 compare_before_after_preprocessing(obj,f"Name: {obj.get_name()} \n{param_columns[user_input]}: {parameter_value}")
                 break
     
-def map_plot(data):
-    for obj in data:
-        if obj.coordinates is not None:
-            
+def plot_sky_map(data):
+    ra_list = []
+    dec_list = []
+    for curve in data:
+        if getattr(curve, "coordinates", None) is not None:
+            ra_list.append(curve.coordinates.ra.hour)
+            dec_list.append(curve.coordinates.dec.deg)
 
     plt.figure(figsize=(8, 6))
-    plt.scatter(ra, dec, s=10, c='blue')
-    plt.xlabel('Rektaszension (RA)')
-    plt.ylabel('Deklination (DEC)')
+    plt.scatter(ra_list, dec_list, s=10, c='blue')
+    plt.xlabel('Rektaszension (Stunden)')
+    plt.ylabel('Deklination (Grad)')
     plt.title('Himmelskarte')
-    plt.gca().invert_xaxis()  # Optional: RA-Achse invertieren wie üblich in Astronomie
+    plt.gca().invert_xaxis()
     plt.grid(True)
     plt.show()
+    
+def plot_sky_map(data, background_fits=None, projection=None):
+    from astropy.coordinates import SkyCoord
+    import astropy.units as u
+    ra_list = []
+    dec_list = []
+    for curve in data:
+        if getattr(curve, "coordinates", None) is not None:
+            ra_list.append(curve.coordinates.ra.hour)
+            dec_list.append(curve.coordinates.dec.deg)
+
+    if background_fits:
+        from astropy.io import fits
+        from astropy.wcs import WCS
+
+        hdu = fits.open(background_fits)[0]
+        wcs = WCS(hdu.header)
+        fig = plt.figure(figsize=(8, 6))
+        ax = fig.add_subplot(111, projection=wcs)
+        ax.imshow(hdu.data, origin='lower', cmap='gray')
+        coords = SkyCoord(ra=ra_list*u.hourangle, dec=dec_list*u.deg, frame='icrs')
+        ax.scatter(coords.ra.deg, coords.dec.deg, transform=ax.get_transform('icrs'), s=10, c='red')
+        ax.set_xlabel('RA')
+        ax.set_ylabel('DEC')
+        ax.invert_xaxis()
+    else:
+        fig = plt.figure(figsize=(8, 6))
+        if projection:
+            ax = fig.add_subplot(111, projection=projection)
+        else:
+            ax = fig.add_subplot(111)
+        ax.scatter(ra_list, dec_list, s=10, c='blue')
+        ax.set_xlabel('Rektaszension (Stunden)')
+        ax.set_ylabel('Deklination (Grad)')
+        ax.set_title('Himmelskarte')
+        if not projection:
+            ax.invert_xaxis()
+        ax.grid(True)
+    plt.show()    
+    
     
 if __name__ == "__main__":
     
@@ -462,12 +505,14 @@ if __name__ == "__main__":
         data = LightCurve.load("515396305126-light-curves") 
         parameter_distribution()
         compare_before_after_preprocessing(data)
-    if False:
-        parameter_distribution(plot=True)
-        sorted_parameters()
     if True:
+        #parameter_distribution(plot=True)
+        sorted_parameters()
+    if False:
         data = base.load_processed_data_list(None, False)
-        map_plot(data)
+        plot_sky_map(data, projection="mollweide")
+        #plot_sky_map(data)
+    
     
 """
 - Fvar kann negativ -> nicht berechnebar sein
