@@ -480,10 +480,46 @@ def plot_sky_map(data, background_fits=None, projection=None):
         ax.grid(True)
     plt.show()    
     
+def get_frequencies():
     
+    jahre = 10
+    
+    data = base.load_processed_data_list(None, False)
+    under10 = {"data": [], "properties": [], "time": []}
+    over10 = {"data": [], "properties": [], "time": []}
+    for curve in data:
+        val = curve.parameters.frequency[["time","properties"]]
+        if len(val) == 0:
+            continue
+        for i in range(len(val)):
+            if val.iloc[i]["time"] < jahre*365 and val.iloc[i]["properties"]>0.2:
+                under10["data"].append(curve)
+                under10["properties"].append(val.iloc[i]["properties"])
+                under10["time"].append(val.iloc[i]["time"])
+            elif val.iloc[i]["time"] >= jahre*365 and val.iloc[i]["properties"]>0.2:
+                over10["data"].append(curve)
+                over10["properties"].append(val.iloc[i]["properties"])
+                over10["time"].append(val.iloc[i]["time"])
+                
+    under10 = pd.DataFrame(under10).sort_values("properties", ascending=False).reset_index(drop=True)
+    over10 = pd.DataFrame(over10).sort_values("properties", ascending=False).reset_index(drop=True)
+
+    
+    num = 10
+    for i in range(num):
+        print(f"Periode unter 10yr mit: {under10.iloc[i]['time']:.2f} oder {under10.iloc[i]['time']/365:.2f}yr")
+        under10.iloc[i]["data"].plot_before_after()
+        print(f"Periode über 10yr mit: {over10.iloc[i]['time']:.2f} oder {over10.iloc[i]['time']/365:.2f}yr")
+        over10.iloc[i]["data"].plot_before_after()
+        
+
+    
+        
 if __name__ == "__main__":
     
     
+    if True:
+        get_frequencies()
     
     if False:
         #create_parameter_list()
@@ -505,7 +541,7 @@ if __name__ == "__main__":
         data = LightCurve.load("515396305126-light-curves") 
         parameter_distribution()
         compare_before_after_preprocessing(data)
-    if True:
+    if False:
         #parameter_distribution(plot=True)
         sorted_parameters()
     if False:
